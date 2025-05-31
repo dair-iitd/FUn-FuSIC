@@ -1,0 +1,19 @@
+{
+    "input_train_file": "./data/webqsp_few_shots/questions_v1.json",
+    "retriever_augmented_train_file": "./data/webqsp_few_shots/schema_retrieval_v1.json",
+    "input_test_file": "./data/grailqability/grailqa_test_subset_50A_50U.json.json",
+    "retriever_augmented_test_file": "./data/final_reranked_retriever_ops/webqsp_src_grailqa_tgt_test_250A_250U_reranked_retriever_op.json",
+    "num_retries": 3,
+    "exemplar_selection": "random",
+    "num_shots": 0,
+    "output_dir": "./results/grailqability/",
+    "program_lang": "sparql",
+    "syntax_feedback": true,
+    "lf_semantic_feedback": true,
+    "naturalize_varnames": true,
+    "cvt_feedback": true,
+    "nl_semantic_feedback": true,
+    "nl_semantic_feedback_mode": "gpt_feedback",
+    "nl_semantic_feedback_prompt_file": "./nl_semantic_prompt.txt",
+    "unanswerability": true
+}

@@ -603,7 +603,7 @@ def select_best_lf(pred_lf_choices: List[dict], orig_nl_qn: str, nl_semantic_fee
     2. of the corresponding pred_nls, use gpt filtering to select the best          [EM maximization]
 
     Unanswerable setting-
-    1. if any one of the non empty answers occurs with frequency >=3,               super self-consistency
+    1. if any one of the non empty answers occurs with frequency >=3,               self-consistency for unanswerability
         - return that answer                                                        [F1 maximization]
         - of the corresponding pred_nls, use gpt filtering to select the best       [EM maximization]
     2. consider those logical forms for which `nl_semantic_check` = True
@@ -641,7 +641,7 @@ def select_best_lf(pred_lf_choices: List[dict], orig_nl_qn: str, nl_semantic_fee
             # Select the corresponding pred_lf and pred_ans pair
             remaining_choices = [x for x in pred_lf_choices if tuple(x['pred_ans']) == max_freq_ans]
             max_freq = len(remaining_choices)
-            if (max_freq>=2) and (max_freq_ans != []): #super self consistency
+            if (max_freq>=2) and (max_freq_ans != []): #self consistency for unanswerability 
                 return get_gpt_filtering_best_choice(remaining_choices, orig_nl_qn)
             else:
                 # step-1: select those logical forms for which `nl_semantic_check` = True

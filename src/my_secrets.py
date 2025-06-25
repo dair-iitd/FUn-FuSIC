@@ -1,2 +1,1 @@
-AZURE_OPENAI_KEY = ""
-AZURE_OPENAI_ENDPOINT = ""
+key = "-"

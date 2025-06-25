@@ -12,8 +12,8 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
-HTTP_PROXY = 'http://10.10.78.22:3128'
-HTTPS_PROXY = 'http://10.10.78.22:3128'
+HTTP_PROXY = 'http://10.10.78.61:3128'
+HTTPS_PROXY = 'http://10.10.78.61:3128'
 
 
 def select_exemplars(train_data, retriever_augmented_train_data, exemplar_selection: str, num_shots: int, test_nl_qn: str = '')-> list:

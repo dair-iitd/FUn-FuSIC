@@ -9,12 +9,12 @@ from SPARQLWrapper.SPARQLExceptions import QueryBadFormed
 from sklearn.metrics import f1_score, precision_score, recall_score
 import my_secrets
 import logging 
-from sparql_typechk import check_type
 from typing import List, Tuple
 # from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from collections import Counter
 logger = logging.getLogger(__name__)
+import datetime
 
 HEADER = """
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> 
@@ -23,18 +23,15 @@ PREFIX : <http://rdf.freebase.com/ns/>
 PREFIX ns: <http://rdf.freebase.com/ns/>
 """
 
-sparql = SPARQLWrapper("http://10.237.23.185:3001/sparql")
-# sparql = SPARQLWrapper("http://10.237.23.161:3001/sparql")
+sparql = SPARQLWrapper("http://10.237.23.161:3001/sparql")
 sparql.setTimeout(200)
 sparql.setReturnFormat(JSON)
 
-HTTP_PROXY = 'http://10.10.78.22:3128'
-HTTPS_PROXY = 'http://10.10.78.22:3128'
-
-# HTTP_PROXY = 'http://10.10.88.6:3128'
-# HTTPS_PROXY = 'http://10.10.88.6:3128'
+HTTP_PROXY = 'http://10.10.78.61:3128'
+HTTPS_PROXY = 'http://10.10.78.61:3128'
 
 MODE = 'azure'
+
 
 REVERSE_PROPERTIES_FILE = '../data/freebase/reverse_properties.txt'
 reverse_properties_dict = {}
@@ -141,6 +138,7 @@ def simplify_cand_paths(cand_paths_str: str, list_of_rels: List[str]) -> str:
     new_cand_paths = []
     for cand_path in cand_paths:
         lines = cand_path.split('\n')
+        # print(lines)
         new_lines = []
         for line in lines:
             if line.startswith('PREFIX'):
@@ -150,6 +148,7 @@ def simplify_cand_paths(cand_paths_str: str, list_of_rels: List[str]) -> str:
             if line.endswith('.'):
                 line_rdf = line.split(' ')
                 rel = line_rdf[1].split('ns:')[-1]
+                # print(rel)
                 if (rel not in list_of_rels) and (rel in reverse_properties_dict):
                     rev_rel = reverse_properties_dict[rel]
                     if rev_rel in list_of_rels:
@@ -161,6 +160,7 @@ def simplify_cand_paths(cand_paths_str: str, list_of_rels: List[str]) -> str:
         new_cand_paths.append(new_cand_path)
     # new_cand_paths = list(set(new_cand_paths)) # keeping only unique occurences
     # just corrected!!! big big bug :(
+    # print(new_cand_paths)
     new_cand_paths_updated = []
     for new_cand_path in new_cand_paths: 
         if new_cand_path not in new_cand_paths_updated: 
@@ -182,9 +182,9 @@ def simplify_cand_rels(cand_rels_str: str) -> Tuple[str, List[str]]:
     for cand_rel in cand_rels:
         if cand_rel in new_cand_rels:
             continue
-        elif cand_rel in reverse_properties_dict:
-            if reverse_properties_dict[cand_rel] in list_of_rels:
-                continue
+        # elif cand_rel in reverse_properties_dict:
+        #     if reverse_properties_dict[cand_rel] in list_of_rels:
+        #         continue
         if cand_rel in fb_roles_dict:
             new_cand_rels.append(fb_roles_dict[cand_rel])
         else:
@@ -252,7 +252,6 @@ def extract_rels_ents(sparql: str) -> Tuple[List[str], List[str]]:
                 rels.append(processed_word)
     return list(set(rels)), list(set(ents))
             
-
 def check_retriever_correctness(cand_entites: str, cand_classes: str, cand_paths: str, cand_rels: str, gt_program: str) -> bool:
     '''
     given the retrieved components, is it possible to generate gt program?
@@ -310,7 +309,6 @@ def get_retriever_correctness(cand_entites: str, cand_classes: str, cand_paths: 
             return (f'{rel} is NOT a part of the schema.')
     return 'correct'
 
-
 def get_answer(lf: str, syntax_feedback: bool = True)-> list:    
     if lf == 'NK':
         return []
@@ -320,6 +318,22 @@ def get_answer(lf: str, syntax_feedback: bool = True)-> list:
     except:
         return ['nonsense']
         import ipdb; ipdb.set_trace()
+    lf = lf.replace('`','')
+    lf = lf.replace('ns:', ':')
+    if 'SELECT' in lf:
+        temp = lf.split('SELECT')
+        # print(temp)
+        lf = 'SELECT'.join(temp[1:])
+        lf= 'SELECT'+lf
+        
+        temp = lf.split('}')
+        # print(temp)
+        lf = '}'.join(temp[:-1])
+        lf= lf+'}'
+        
+    lf = lf.strip()
+
+
     query_result = execute_query(lf, syntax_feedback)
     try:
         varnames = query_result['head']['vars']
@@ -344,7 +358,6 @@ def get_answer(lf: str, syntax_feedback: bool = True)-> list:
         logging.info(f"query result: {query_result}")
         return []
     
-
 def sexp_to_sparql(sexp_paths: str) -> str:
     sparql_paths_list = []
     for sexpr in sexp_paths.split("|"):
@@ -364,18 +377,95 @@ def sexp_to_sparql(sexp_paths: str) -> str:
     return sparql_paths
 
 
-from contextlib import ExitStack
-
-def ask_gpt_anything(messages_list: List[dict], model: str = 'gpt-4', max_retries: int = 20, temperature: float = 0) -> str:
+def ask_gpt_anything(messages_list: List[dict],  model: str = 'gpt-4', max_retries: int = 10, temperature: float = 0)-> str:
     openai.api_key = my_secrets.AZURE_OPENAI_KEY
-    openai.api_base = my_secrets.AZURE_OPENAI_ENDPOINT
+    openai.api_base = my_secrets.AZURE_OPENAI_ENDPOINT # your endpoint should look like the following https://YOUR_RESOURCE_NAME.openai.azure.com/
     openai.api_type = 'azure'
     openai.api_version = '2023-05-15' # this might change in the future
+    retries = 0
+    os.environ['http_proxy'] = HTTP_PROXY
+    os.environ['https_proxy'] = HTTPS_PROXY
+
+    if MODE == 'azure' and model == 'gpt-3.5-turbo':
+        model = 'gpt-35-turbo-0125'
+    stt = time.time()
+    logger.info('----asking gpt----')
+    logger.info(messages_list)
+    # logger.info(f"sys prompt: {sys_prompt}")
+    # logger.info(f"usr prompt: {usr_prompt}")
+    # logger.info(f"asst prompt: {asst_prompt}")
+    # messages_list = []
+    # if sys_prompt!= '':
+    #     messages_list.append({"role": "system", "content": sys_prompt})
+    # if usr_prompt != '':
+    #     messages_list.append({"role": "user", "content": usr_prompt})
+    # if asst_prompt != '':
+    #     messages_list.append({"role": "assistant", "content": asst_prompt})
+    while retries < max_retries:
+        try:
+            time.sleep(1)
+            client = openai.AzureOpenAI(
+                                    api_key=my_secrets.AZURE_OPENAI_KEY,  
+                                    api_version="2023-12-01-preview",
+                                    azure_endpoint = my_secrets.AZURE_OPENAI_ENDPOINT
+                                    )
+            completion = client.chat.completions.create(
+                model = model, 
+                temperature = temperature,
+                messages=messages_list,
+                seed=0
+            )
+            logging.info(f'gpt response: {completion.choices[0].message.content.strip()}')
+            ett = time.time()
+            logging.info(f'this gpt service took time: {ett-stt}')
+            return ((completion.choices[0].message.content.strip()))
+        except Exception as e:
+            logging.info(e)
+            print(e)
+            logging.info('timeout')
+            retries += 1
+            time.sleep(2*retries)
+    
+    del os.environ['http_proxy'] 
+    del os.environ['https_proxy'] 
+
+
+from contextlib import ExitStack
+def create_batch_(qid, prompt):
+    task = {
+        "custom_id": str(qid),
+        "method": "POST",
+        "url": "/v1/chat/completions",
+        "body": {
+            # This is what you would have in your Chat Completions API call
+            "model": 'gpt-4',
+            "temperature": 0,
+            "messages": prompt,
+        }
+        }
+    return json.dumps(task)
+
+def get_batch_job(client, id):
+    batch_job = client.batches.retrieve(id)
+    # print(batch_job)
+    return batch_job
+
+def get_result(client, batch_job):
+    result_file_id = batch_job.output_file_id
+    result = client.files.content(result_file_id).content
+    line = json.loads(result)
+    return line['response']['body']['choices'][0]['message']['content']
+
+def ask_gpt_anything_batch_job(messages_list: List[dict], model: str = 'gpt-4', max_retries: int = 30, temperature: float = 0) -> str:
+    # openai.api_key = my_secrets.AZURE_OPENAI_KEY
+    # openai.api_base = my_secrets.AZURE_OPENAI_ENDPOINT
+    # openai.api_type = 'azure'
+    # openai.api_version = '2023-12-01-preview' # this might change in the future
     retries = 0
 
     if MODE == 'azure' and model == 'gpt-3.5-turbo':
         model = 'gpt-35-turbo-0125'
-    
+    model = 'gpt-4'
     with ExitStack() as stack:
         os.environ['http_proxy'] = HTTP_PROXY
         os.environ['https_proxy'] = HTTPS_PROXY
@@ -388,33 +478,59 @@ def ask_gpt_anything(messages_list: List[dict], model: str = 'gpt-4', max_retrie
         logger.info('----asking gpt----')
         logger.info(messages_list)
 
-        client = openai.AzureOpenAI(
-            api_key=my_secrets.AZURE_OPENAI_KEY,  
-            api_version="2023-12-01-preview",
-            azure_endpoint=my_secrets.AZURE_OPENAI_ENDPOINT
+        # client = openai.AzureOpenAI(
+        #     api_key=my_secrets.AZURE_OPENAI_KEY,  
+        #     api_version="2023-12-01-preview",
+        #     azure_endpoint=my_secrets.AZURE_OPENAI_ENDPOINT
+        # )
+        client = openai.OpenAI(
+            api_key=my_secrets.key
         )
+        
+        cur_time= str(datetime.datetime.now()).replace(' ', '_')
+        task_name = f'{cur_time}' 
+        batch_tasks = [create_batch_('ask_gpt_anything', messages_list)]
+        with open(f'./batch_runs/temp/{task_name}.jsonl', 'w') as file:
+            file.write('\n'.join(batch_tasks))
+
+        batch_file = client.files.create(
+                                            file=open(f'./batch_runs/temp/{task_name}.jsonl', "rb"),
+                                            purpose="batch"
+                                            )      
+        # print(batch_file) 
+
+        batch_job = client.batches.create(
+                                            input_file_id=batch_file.id,
+                                            endpoint="/v1/chat/completions",
+                                            completion_window="24h"
+                                ) 
         
         while retries < max_retries:
             try:
                 time.sleep(1)  # Sleep at the start of the loop to respect rate limits and back-off
-                completion = client.chat.completions.create(
-                    model=model, 
-                    temperature=temperature,
-                    messages=messages_list,
-                    seed=0
-                )
-                response = completion.choices[0].message.content.strip()
-                logging.info(f'gpt response: {response}')
-                ett = time.time()
-                logging.info(f'this gpt service took time: {ett-stt}')
-                client.close()
-                return response
+                while(1):
+                    # print(batch_job, batch_job.status)
+                    batch_job = get_batch_job(client, batch_job.id)
+                    if batch_job.status =="completed":
+                        response = get_result(client, batch_job)
+                        logging.info(f'gpt response: {response}')
+                        ett = time.time()
+                        logging.info(f'this gpt service took time: {ett-stt}')
+                        client.close()
+                        return response
+                    elif batch_job.status =="failed":
+                        break
+                    else:
+                        time.sleep(10)
             except Exception as e:
                 logging.error(f'error on attempt {retries + 1}: {e}', exc_info=True)
                 retries += 1
                 time.sleep(4 * retries)  # Exponential back-off
-
     client.close()
+    if retries>= max_retries:
+        print("Not able to query chatgpt")
+        print(response)
+        raise Exception
     return "Failed to get response after retries"
 
 
@@ -427,16 +543,25 @@ def correct_syntax(query: str, exception: str) -> str:
                                 {"role": "user", "content": usr_prompt}])
     return new_query
 
+def correct_syntax_prompt(query: str, exception: str) -> str:
+    sys_prompt = 'Correct the syntax of the following sparql query. Return ONLY the corrected sparql query without any explanation'
+    asst_prompt = query
+    usr_prompt = str(exception)
+    prompt = [{"role": "system", "content": sys_prompt}, 
+                {"role": "assistant", "content": asst_prompt}, 
+                {"role": "user", "content": usr_prompt}]
+    return prompt
+
 naturalize_varnames_cache = {}
-def naturalize_varnames(sparql_query: str)-> str:
+def naturalize_varnames(sparql_query: str, syntax_feedback: bool = True)-> str:
     if sparql_query in naturalize_varnames_cache:
         return naturalize_varnames_cache[sparql_query]
     sys_prompt = 'change the sparql query to have variable names representative of what objects thet refer to. transform the variable names in this query. Do NOT change the prefix headers and relation names'
     usr_prompt = sparql_query
     prompt = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": usr_prompt}]
     new_sparql_query = ask_gpt_anything(prompt)
-    old_ans = get_answer(sparql_query)
-    new_ans = get_answer(new_sparql_query)
+    old_ans = get_answer(sparql_query,syntax_feedback)
+    new_ans = get_answer(new_sparql_query,syntax_feedback)
     if old_ans != new_ans:
         logger.info('WARNING: the new sparql query is not returning the same answer as the old one...returning old one')
         naturalize_varnames_cache[sparql_query] = sparql_query
@@ -455,7 +580,7 @@ def get_subset(data: List[dict], qid_list: List[str]) -> List[dict]:
     return new_data
 
 
-def check_connected_ans_qn(pred_lf: str)-> bool:
+def check_connected_ans_qn(pred_lf: str, syntax_feedback: bool = True)-> bool:
     '''
     checking whether the topic entity mid is connected to the answer node
     Assumption: the topic entity mid is mentioned by the 'VALUES' clause
@@ -467,8 +592,8 @@ def check_connected_ans_qn(pred_lf: str)-> bool:
         if 'VALUES' not in line:
             new_query_l.append(line)
     new_query = '\n'.join(new_query_l)
-    new_results = get_answer(new_query)
-    old_results = get_answer(pred_lf)
+    new_results = get_answer(new_query, syntax_feedback)
+    old_results = get_answer(pred_lf, syntax_feedback)
     if new_results == old_results:
         return False
     else:
@@ -476,13 +601,13 @@ def check_connected_ans_qn(pred_lf: str)-> bool:
     
 
 
-ent_datas = json.load(open(json.load(open('config.json'))['input_test_file']))
-entities = {}
-#TODO: the prefix is 'ns:' in webqsp mode & ':' in grailqa mode...this needs to be generalized
-for data in ent_datas:
-    for node in data['graph_query']['nodes']:
-        if node['node_type'] == 'entity':
-            entities[':'+node['id']] = node['friendly_name']
+# ent_datas = json.load(open(json.load(open('config.json'))['input_test_file']))
+# entities = {}
+# #TODO: the prefix is 'ns:' in webqsp mode & ':' in grailqa mode...this needs to be generalized
+# for data in ent_datas:
+#     for node in data['graph_query']['nodes']:
+#         if node['node_type'] == 'entity':
+#             entities[':'+node['id']] = node['friendly_name']
 
 def get_common_name(mid_url: str):
     if not mid_url.startswith('http://'):
@@ -523,7 +648,7 @@ def mid_to_friendly(lf: str) -> str:
     return ' '.join(words)
 
 
-def naturalize_query(lf: str)-> str:
+def naturalize_query(lf: str, syntax_feedback: bool = True)-> str:
     '''
     convert a logical form onto a natural language question
     '''
@@ -536,7 +661,7 @@ def naturalize_query(lf: str)-> str:
             continue
         new_lines.append(line)
     lf = ('\n').join(new_lines)
-    lf = naturalize_varnames(lf)
+    lf = naturalize_varnames(lf, syntax_feedback)
     prompts = [
         {"role": "system", "content": "Convert this sparql query into a natural language question. Make the question as natural as possible. "},
         {"role": "user", "content": mid_to_friendly(lf)}
@@ -580,12 +705,12 @@ def get_grounded(pred_lf: str, qid: str, retriever_augmented_test_data: List[dic
     ques, cand_entities, cand_classes, cand_paths, cand_rels = process_retriever_op(retrieved_data)
     return get_retriever_correctness(cand_entities, cand_classes, cand_paths, cand_rels, pred_lf)
 
-os.environ['http_proxy'] = HTTP_PROXY
-os.environ['https_proxy'] = HTTPS_PROXY
-# sentence_transformer_model = SentenceTransformer('mixedbread-ai/mxbai-embed-large-v1')
-sentence_transformer_model = None
-del os.environ['http_proxy']
-del os.environ['https_proxy']
+# os.environ['http_proxy'] = HTTP_PROXY
+# os.environ['https_proxy'] = HTTPS_PROXY
+# # sentence_transformer_model = SentenceTransformer('mixedbread-ai/mxbai-embed-large-v1')
+# sentence_transformer_model = None
+# del os.environ['http_proxy']
+# del os.environ['https_proxy']
 
 def select_best_lf(pred_lf_choices: List[dict], orig_nl_qn: str, nl_semantic_feedback_mode: str, unanswerability: bool) -> Tuple[str, List[str]]:
     '''
@@ -603,7 +728,7 @@ def select_best_lf(pred_lf_choices: List[dict], orig_nl_qn: str, nl_semantic_fee
     2. of the corresponding pred_nls, use gpt filtering to select the best          [EM maximization]
 
     Unanswerable setting-
-    1. if any one of the non empty answers occurs with frequency >=3,               self-consistency for unanswerability
+    1. if any one of the non empty answers occurs with frequency >=3,               super self-consistency
         - return that answer                                                        [F1 maximization]
         - of the corresponding pred_nls, use gpt filtering to select the best       [EM maximization]
     2. consider those logical forms for which `nl_semantic_check` = True
@@ -615,6 +740,7 @@ def select_best_lf(pred_lf_choices: List[dict], orig_nl_qn: str, nl_semantic_fee
     logger.info(pred_lf_choices)
     if pred_lf_choices == []:
         return 'NK', []
+    
     if nl_semantic_feedback_mode == 'gpt_feedback':
         if not unanswerability: #answerability is guaranteed
             # remove empty answer lfs
@@ -641,7 +767,7 @@ def select_best_lf(pred_lf_choices: List[dict], orig_nl_qn: str, nl_semantic_fee
             # Select the corresponding pred_lf and pred_ans pair
             remaining_choices = [x for x in pred_lf_choices if tuple(x['pred_ans']) == max_freq_ans]
             max_freq = len(remaining_choices)
-            if (max_freq>=2) and (max_freq_ans != []): #self consistency for unanswerability 
+            if (max_freq>=2) and (max_freq_ans != []): #super self consistency
                 return get_gpt_filtering_best_choice(remaining_choices, orig_nl_qn)
             else:
                 # step-1: select those logical forms for which `nl_semantic_check` = True
@@ -649,6 +775,7 @@ def select_best_lf(pred_lf_choices: List[dict], orig_nl_qn: str, nl_semantic_fee
                 if nl_semantic_check_choices == []:
                     return 'NK', []
                 return get_gpt_filtering_best_choice(nl_semantic_check_choices, orig_nl_qn)
+        
         # self-consistency strategy
         if len(pred_lf_choices) == 1:
             logger.info('only one choice, returning it')
@@ -734,6 +861,27 @@ def select_best_lf(pred_lf_choices: List[dict], orig_nl_qn: str, nl_semantic_fee
 
 
         # using gpt-4
+
+def select_best_lf_sc(pred_lf_choices: List[dict]) -> Tuple[str, List[str]]:
+    logger.info('----selecting best lf using self consistency----')
+    logger.info(pred_lf_choices)
+    if pred_lf_choices == []:
+        return 'NK', []
+    
+    # self-consistency strategy
+    if len(pred_lf_choices) == 1:
+        logger.info('only one choice, returning it')
+        return pred_lf_choices[0]['pred_lf'], pred_lf_choices[0]['pred_ans']
+    else:
+        # Create a frequency dictionary for pred_ans values
+        freq_dict = Counter(tuple(x['pred_ans']) for x in pred_lf_choices)
+        # Find the pred_ans with maximum frequency
+        max_freq_ans = max(freq_dict, key=freq_dict.get)
+        # Select the corresponding pred_lf and pred_ans pair
+        for choice in pred_lf_choices:
+            if tuple(choice['pred_ans']) == max_freq_ans:
+                return choice['pred_lf'], choice['pred_ans']
+
 #         choices = '\n'.join([f"{idx+1}. pred_nl: {x['pred_nl'].replace(' distinct ', ' ')}" for idx, x in enumerate(pred_lf_choices)])
 #         usr_prompt = f"""
 # orig_nl_qn = {orig_nl_qn}
@@ -781,10 +929,16 @@ def get_gpt_feedback(pred_nl_qn: str, orig_nl_qn: str, ini_prompt: str, retrieve
     ## experimenting w/o nl_semantic_prompt
     # prompt = f"Compare whether these 2 questions are semantically equivalent or not. If the only difference between the 2 questions is that one asks for a singular answer and the other asks for a plural answer, they are considered to be same.\n{ini_prompt}\npred question: {pred_nl_qn}\norig question: {orig_nl_qn}\nexplanation: "
     # prompt = f"Check whether the question we answer and the question originally asked are semantically equivalent or not.\n{ini_prompt}\nQuestion we answer: {pred_nl_qn}\nQuestion originally asked: {orig_nl_qn}\nexplanation: "
-    prompt = f"""Check whether the question we answer and the question originally asked are semantically equivalent or not. The question we answer is semantically equivalent to the question originally asked only if- 
-1. the type of the answer returned by the question we answer is either same or more specific than the type asked for in the original question.
-2. the reasoning steps followed by the question we answer are same as the reasoning steps followed by the question originally asked. 
-3. the mathematical operators and logical operators used in the question we answer are same as the operators used in the question originaly asked. 
+#     prompt = f"""Check whether the question we answer and the question originally asked are semantically equivalent or not. The question we answer is semantically equivalent to the question originally asked only if- 
+# 1. the type of the answer returned by the question we answer is either same or more specific than the type asked for in the original question.
+# 2. the reasoning steps followed by the question we answer are same as the reasoning steps followed by the question originally asked. 
+# 3. the mathematical operators and logical operators used in the question we answer are same as the operators used in the question originaly asked. 
+# {ini_prompt}
+# Question we answer: {pred_nl_qn}
+# Question originally asked: {orig_nl_qn}
+# explanation: """
+
+    prompt = f"""
 {ini_prompt}
 Question we answer: {pred_nl_qn}
 Question originally asked: {orig_nl_qn}
@@ -949,8 +1103,11 @@ def get_acc_f1(preds_data: List[dict]):
     wrongs = [] # defined as f1<1 for now
     for pred_data in preds_data:
         gt_ans = [str(x['answer_argument']) for x in pred_data['answer']]
-        
-        pred_ans = pred_data['pred_ans']
+        if 'pred_ans' in pred_data.keys():
+            pred_ans = pred_data['pred_ans']
+        else:
+            pred_ans = []
+            pred_data['pred_lf'] = "NK"
         all_possible_answers = list(set(gt_ans + pred_ans))
         
         # Convert to binary labels
@@ -995,7 +1152,7 @@ def get_acc_f1(preds_data: List[dict]):
             wrongs.append(pred_data['qid'])
         # print(f1)
         # print('avg: ', sum(f1_scores) / len(f1_scores) if f1_scores else 0)
-    print(wrongs)
+    # print(wrongs)
 
     # Calculate average F1 score
     f1_avg = sum(f1_scores) / len(f1_scores) if f1_scores else 0
@@ -1003,6 +1160,11 @@ def get_acc_f1(preds_data: List[dict]):
     l_f1_avg = sum(l_f1_scores) / len(l_f1_scores) if l_f1_scores else 0
     return f1_avg, em_avg, l_f1_avg
 
+def get_em_f1(pred_path):
+    with open(pred_path) as f:
+        data = json.load(f)
+        print(get_acc_f1(data))
 
 if __name__ == '__main__':
-    import ipdb; ipdb.set_trace()
+    get_em_f1("./outputs/graphqa250+250/result.json")
+

@@ -3,7 +3,6 @@ from typing import List, Union
 from collections import defaultdict
 from pathlib import Path
 from tqdm import tqdm
-from sparql_executor import execute_query
 import json
 types = []
 relations = []
@@ -13,34 +12,6 @@ upper_types = defaultdict(lambda: set())
 
 REVERSE = True  # if REVERSE, then reverse relations are also taken into account for semantic EM
 
-# path = str(Path(__file__).parent.absolute())
-
-# reverse_properties = {}
-# with open(path + '/../ontology/reverse_properties', 'r') as f:
-#     for line in f:
-#         reverse_properties[line.split('\t')[0]] = line.split('\t')[1].replace('\n', '')
-
-# with open(path + '/../ontology/fb_roles', 'r') as f:
-#     content = f.readlines()
-
-# relation_dr = {}
-# relations = set()
-# for line in content:
-#     fields = line.split()
-#     relation_dr[fields[1]] = (fields[0], fields[2])
-#     relations.add(fields[1])
-
-# with open(path + '/../ontology/fb_types', 'r') as f:
-#     content = f.readlines()
-
-# upper_types = defaultdict(lambda: set())
-
-# types = set()
-# for line in content:
-#     fields = line.split()
-#     upper_types[fields[0]].add(fields[2])
-#     types.add(fields[0])
-#     types.add(fields[2])
 
 function_map = {'le': '<=', 'ge': '>=', 'lt': '<', 'gt': '>'}
 
@@ -418,8 +389,10 @@ def lisp_to_sparql(lisp_program: str):
             relations = retrieve_relations(expression[2])
             expression = expression[:2]
             expression.extend(relations)
-
+    # print(expression)
     sub_programs = _linearize_lisp_expression(expression, [0])
+    # print(sub_programs)
+
     question_var = len(sub_programs) - 1
     count = False
 
@@ -570,6 +543,7 @@ def lisp_to_sparql(lisp_program: str):
             var = int(subp[1][1:])
             root_var = get_root(var)
             identical_variables_r[int(i)] = root_var  # COUNT can only be the outtermost
+            # print(sub_programs)
             count = True
     #  Merge identical variables
     for i in range(len(clauses)):
@@ -639,3 +613,4 @@ def lisp_to_lambda(expressions: Union[List[str], str]):  # from lisp-grammar for
 if __name__ == '__main__':
     s_expr = "(ARGMAX (JOIN (R travel.travel_destination.tourist_attractions) m.01f62) architecture.structure.construction_started)"
     print(lisp_to_sparql(s_expr))
+

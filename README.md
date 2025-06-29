@@ -5,7 +5,7 @@
 python3 main.py config.json 
 ```
 ## Pre-Trained Checkpoints
-We have uploaded checkpoints for both fintuned Pangu and RetinaQA baselines [Checkpoints][(https://www.kaggle.com/models/samratya213/fun-fusic/)
+We have uploaded checkpoints for both fintuned Pangu and RetinaQA baselines [[Checkpoints][(https://www.kaggle.com/models/samratya213/fun-fusic/)]
 ```
 ## Error correction using feedback mechanisms
 In this section, we enlist the different types of generation errors that we observe the LLM to make, and we provide the LLM feedback based on the error.

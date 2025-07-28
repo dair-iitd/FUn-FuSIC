@@ -4,6 +4,10 @@ This repository contains the open-sourced official implementation of the [paper]
 [[video](https://drive.google.com/file/d/1Zbu6Ec14XHoZJxMjVFI982VyPNeqMLUP/view?usp=sharing)] | 
 [[slides](https://docs.google.com/presentation/d/1vmsktNXRjnVcq5Xm4jM7L4JfhNj7EBQY/edit?usp=drive_link&ouid=115447969639729561298&rtpof=true&sd=true)] | 
 [[poster](https://drive.google.com/file/d/1CY_YRxk0R38Cxmxi9Q8rgQRcijIgKeUL/view?usp=sharing)]
+
+## Architecture
+![alt text](https://github.com/dair-iitd/FUn-FuSIC/blob/main/FUn-FuSIC%20Architeture.jpg)
+
 ## To run the code 
 ```
 python3 main.py config.json 

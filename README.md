@@ -1,5 +1,9 @@
 # FUn-FuSIC : Iterative Repair with Weak Verifiers for Few-shot Transfer in KBQA with Unanswerability
 
+This repository contains the open-sourced official implementation of the [paper](https://aclanthology.org/2025.findings-acl.1262/) published at ACL'25 findings.
+[[video](https://drive.google.com/file/d/1Zbu6Ec14XHoZJxMjVFI982VyPNeqMLUP/view?usp=sharing)] | 
+[[slides](https://docs.google.com/presentation/d/1vmsktNXRjnVcq5Xm4jM7L4JfhNj7EBQY/edit?usp=drive_link&ouid=115447969639729561298&rtpof=true&sd=true)] | 
+[[poster](https://drive.google.com/file/d/1CY_YRxk0R38Cxmxi9Q8rgQRcijIgKeUL/view?usp=sharing)]
 ## To run the code 
 ```
 python3 main.py config.json 
